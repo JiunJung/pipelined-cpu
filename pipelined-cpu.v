@@ -70,20 +70,24 @@ always @(posedge clk)begin //1st stage (fetch instruction)
 end
 
 always @(posedge clk)begin //2nd stage (instruction decode)
+  if(IR[14:12] == 3'b100 or IR[14:12] == 3'b101 or IR[14:12] == 3'b110)begin
+    //must generate control bit. but how freeze other steps exept next steps?
+  end
   I <= {I[1:0],IR[15]};
   OP0 <= IR[11:0];
   case(IR[14:12]) //decoder
-    3'b000 : D0 <= 8'b00000001; //note this! 000 returns D0[0] = 1 
-    3'b001 : D0 <= 8'b00000010;
-    3'b010 : D0 <= 8'b00000100;
-    3'b011 : D0 <= 8'b00001000;
-    3'b100 : D0 <= 8'b00010000;
-    3'b101 : D0 <= 8'b00100000;
-    3'b110 : D0 <= 8'b01000000;
-    3'b111 : D0 <= 8'b10000000;
+    3'b000 : D0 <= 8'b00000001; //note this! 000 returns D0[0] = 1 //AND
+    3'b001 : D0 <= 8'b00000010; //ADD
+    3'b010 : D0 <= 8'b00000100; //LDA
+    3'b011 : D0 <= 8'b00001000; //STA
+    3'b100 : D0 <= 8'b00010000; //BUN
+    3'b101 : D0 <= 8'b00100000; //BSA
+    3'b110 : D0 <= 8'b01000000; //ISZ
+    3'b111 : D0 <= 8'b10000000; //register reference instruction
     default : D0 <= 8'b00000000;
   endcase
   #3 AR_1 <= OP0; //put buffer(delay) for indirect addressing in fetch operand (3rd stage)
+
 end
 
 //3rd stage cause hazard because of data_in (structure hazard)
