@@ -5,7 +5,7 @@ application of pipeline to mano-machine cpu.
 
 ## Pipeline Hazards
 
-- Structure Hazred
+- Structure Hazard
 
 - Data Hazard
 
