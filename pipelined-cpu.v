@@ -31,6 +31,11 @@ reg [15:0] OP0; //stores opcode(register reference) for a brief moment at 2nd st
 reg [15:0] OP1; //stores opcode(register reference) at 3rd stage
 reg [15:0] OP2; //stores opcode(register reference) at 4th stage.
 
+reg [2:0] S1; //counter register to solve branch hazard.
+reg [2:0] S2;
+reg [2:0] S3;
+reg [2:0] S4;
+reg [2:0] S5;
  
 //define reg end
 //assign here
@@ -59,19 +64,30 @@ always @(negedge reset_n) begin
   OP1 <= 0; 
   OP2 <= 0; 
 
+  S1 <= 0;
+  S2 <= 0;
+  S3 <= 0;
+  S4 <= 0;
+  S5 <= 0;
 end
 
 //I will use the sram which gives data whether it is Read mode or not.
 always @(posedge clk)begin //1st stage (fetch instruction)
-  AR_0 <= PC; //error
-  #2 //put buffer for waiting instruction fetch.
-  IR <= inst_in;
-  PC <= PC + 1;
+  if(S1 == 3'b000)begin
+    AR_0 <= PC; //error
+    #2 //put buffer for waiting instruction fetch.
+    IR <= inst_in;
+    PC <= PC + 1;
+  end
+  else begin
+    S1 <= S1 - 1;
+  end
 end
 
 always @(posedge clk)begin //2nd stage (instruction decode)
   if(IR[14:12] == 3'b100 or IR[14:12] == 3'b101 or IR[14:12] == 3'b110)begin
-    //must generate control bit. but how freeze other steps exept next steps?
+    S1 <= 3'b010;
+    S2 <= 3'b011;
   end
   I <= {I[1:0],IR[15]};
   OP0 <= IR[11:0];
