@@ -19,16 +19,17 @@ module piplined
 );
 
 //define reg here
-reg [15:0] AR_0, AR_1, DR, IR, PC, AC; //AR_0 is for instructions, AR_1 is for data.
+reg [15:0] AR_0, AR_1, DR, DR2, IR, PC, AC; //AR_0 is for instructions, AR_1 is for data.
 reg E, r_we_n;
 reg [2:0] I; //I stores MSB.
-reg [7:0] D; //stores decoder result.
-reg [7:0] D2; 
-reg [7:0] D3;
+reg [7:0] D0; //stores decoder result.
+reg [7:0] D1; 
+reg [7:0] D2;
 reg [15:0] r_data_out;
-//new reg
-reg [15:0] R1; //stores opcode for a brief moment at 2nd stage.
-reg [15:0] R2; //stores DR data at 4th stage.
+
+reg [15:0] OP0; //stores opcode(register reference) for a brief moment at 2nd stage.
+reg [15:0] OP1; //stores opcode(register reference) at 3rd stage
+reg [15:0] OP2; //stores opcode(register reference) at 4th stage.
 
  
 //define reg end
@@ -43,19 +44,20 @@ always @(negedge reset_n) begin
   AR_0 <= 16'd0;
   AR_1 <= 16'd0;
   DR <= 16'd0;
+  DR2 <= 16'd0;
   IR <= 16'd0;
   PC <= 16'd0;
   AC <= 16'd0;
   I <= 3'b000;
   E <= 1'b0;
-  D <= 8'd0;
+  D0 <= 8'd0;
+  D1 <= 8'd0;
   D2 <= 8'd0;
-  D3 <= 8'd0;
   r_we_n <= 1'b1; //defalt : read
-  
-  //new reg (general register)
-  R1 <= 1'b0; 
-  R2 <= 1'b0; 
+
+  OP0 <= 0; 
+  OP1 <= 0; 
+  OP2 <= 0; 
 
 end
 
@@ -69,50 +71,68 @@ end
 
 always @(posedge clk)begin //2nd stage (instruction decode)
   I <= {I[1:0],IR[15]};
-  R1 <= IR[11:0];
+  OP0 <= IR[11:0];
   case(IR[14:12]) //decoder
-    3'b000 : D <= 8'b00000001;
-    3'b001 : D <= 8'b00000010;
-    3'b010 : D <= 8'b00000100;
-    3'b011 : D <= 8'b00001000;
-    3'b100 : D <= 8'b00010000;
-    3'b101 : D <= 8'b00100000;
-    3'b110 : D <= 8'b01000000;
-    3'b111 : D <= 8'b10000000;
-    default : D <= 8'b00000000;
+    3'b000 : D0 <= 8'b00000001; //note this! 000 returns D0[0] = 1 
+    3'b001 : D0 <= 8'b00000010;
+    3'b010 : D0 <= 8'b00000100;
+    3'b011 : D0 <= 8'b00001000;
+    3'b100 : D0 <= 8'b00010000;
+    3'b101 : D0 <= 8'b00100000;
+    3'b110 : D0 <= 8'b01000000;
+    3'b111 : D0 <= 8'b10000000;
+    default : D0 <= 8'b00000000;
   endcase
-  #3 AR_1 <= R1; //put buffer(delay) for indirect addressing in fetch operand (3rd stage)
-  
+  #3 AR_1 <= OP0; //put buffer(delay) for indirect addressing in fetch operand (3rd stage)
 end
 
 //3rd stage cause hazard because of data_in (structure hazard)
 //DR <= data_in (T4 part) must be changed. stall or multiple sram.
 
-always @(posedge clk)begin  //3rd stage (fetch operand) 
-  if(D[7] == 1'b0)begin //memory reference instructions
+always @(posedge clk)begin  //3rd stage (fetch operand)
+  D1 <= D0; //D0 must be registerd for not causing structure hazard.
+  OP1 <= OP0;
+  if(D0[7] == 1'b0)begin //memory reference instructions
     if(I[0] == 1'b0)begin //direct addressing mode
       DR <= data_in;
     end 
-    else if(I[0] == 1'b1)begin
+    else if(I[0] == 1'b1)begin //indirect addressing mode
       AR_1 <= data_in; 
       #1 DR <= data_in; //put buffer for waiting data fetch.
     end
   end
-  D2 <= D; //D must be registerd for not causing structure hazard.
 end
 
-always @(posedge clk)begin //4rth stage (execution instruction) //must move DR data into general registers.
-  if(D2[7] == 1'b0)begin //memory reference instructions
-    if(I[1] == 1'b0)begin //direct addressing mode
-      
-    end 
-    else if(I[1] == 1'b1)begin
-      
-    end
+always @(posedge clk)begin //4rth stage (execution instruction) 
+  //must move DR data into DR2. NO. It catches before update.
+  D2 <= D1;
+  OP2 <= OP1; //Is it really neccessary?
+  if(D1[7] == 1'b0)begin //memory reference instructions //must solve branch hazard.
+    case(D1)
+      8'b00000001 : AC <= AC & DR;      //AND
+      8'b00000010 : {E, AC} <= AC + DR; //ADD
+      8'b00000100 : AC <= DR;           //LDA
+      8'b00001000 :                     //STA
+        r_we_n <= 1'b0;
+        r_data_out <= AC;
+      8'b00010000 : PC <= OP1;          //BUN
+      8'b00100000 :                     //BSA
+        r_we_n <= 1'b0;
+        r_data_out <= PC;
+        OP2 <= OP1 +1;
+        #1 PC <= OP2;
+      8'b01000000 :                     //ISZ -> solve using freeze approach
+        DR2 <= DR + 1;
+        r_we_n <= 1'b0;
+        #1 r_data_out <= DR2;
+        if(DR2 == 0)begin
+          
+        end
+    endcase
   end
-  else if(D2[7] == 1'b1)begin //register reference instructions
+  else if(D1[7] == 1'b1)begin //register reference instructions
     if(I[1] == 1'b0)begin
-      case(R1)
+      case(OP1)
         16'h800 : AC <= 16'd0;        //CLA
         16'h400 : E <= 1'b0;          //CLE
         16'h200 : AC <= ~AC;          //CMA
@@ -126,11 +146,10 @@ always @(posedge clk)begin //4rth stage (execution instruction) //must move DR d
       //input-output instructions
     end
   end
-  D3 <= D2;
 end
 
 always @(posedge clk)begin //5th stage (write operand) //can cause structure hazard with 3rd stage.
-//make sure to deal with D3 and I[2]
+//make sure to deal with D2 and I[2] and OP2(register reference)
 
 end
 
