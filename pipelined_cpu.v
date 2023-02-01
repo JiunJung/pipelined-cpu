@@ -1,6 +1,6 @@
 `timescale 0.1ns/1ps
 
-module piplined 
+module pipelined_cpu 
 #
 (
   parameter ADDR_WIDTH = 16,
