@@ -66,7 +66,7 @@ always @(negedge reset_n) begin
   D2 <= 8'd0;
   r_we_n <= 1'b1; //defalt : read
 
-  OP0 <= 0; 
+  OP0 <= 0; //
   OP1 <= 0; 
   OP2 <= 0; 
 
