@@ -134,26 +134,30 @@ end
 always @(posedge clk)begin  //3rd stage (fetch operand)
   if(S3 == 1'b1)begin
     if(D0[7] == 1'b0)begin //memory reference instructions
-      if(OP0 == OP1)begin //Bypassing
-        if(I[0] == 1'b0)begin
+      if(I[0] == 1'b0)begin //direct addressing mode
+        if(OP0 == OP1) begin //Bypassing
           #3 DR <= B1; OP1 <= OP0;
-        end else if(I[0] == 1'b1)begin
-          #3 AR_1 <= B1;
-          #1 DR <= data_in; OP1 <= B1;
-        end 
-      end else begin 
-        if(I[0] == 1'b0)begin //direct addressing mode
+        end else begin
           #2 AR_1 <= OP0; //async sram will return data. After stage 5 complete.
           #1 // Is it okay? (if not ok -> #2)
           DR <= data_in;
           OP1 <= OP0;
-        end 
-        else if(I[0] == 1'b1)begin //indirect addressing mode
-          #2 AR_1 <= OP0; //async sram will return data. After stage 5 complete.
-          #1 // Is it okay? (if not ok -> #2)
-          AR_1 <= data_in; 
-          OP1 <= data_in;
-          #1 DR <= data_in; //put buffer for waiting data fetch.
+        end      
+      end else if(I[0] == 1'b1)begin //indirect addressing mode
+        if(OP0 == OP1) begin //Bypassing
+          #2 AR_1 <= B1; OP1 <= B1;
+          #1 DR <= data_in;
+        end else begin
+          #2 AR_1 <= OP0;
+          #1
+          if(OP1 == data_in)begin //Bypassing
+            DR <= B1;
+            OP1 <= data_in;
+          end else begin
+            AR_1 <= data_in;
+            OP1 <= data_in;
+            #1 DR <= data_in;
+          end
         end
       end
     end
