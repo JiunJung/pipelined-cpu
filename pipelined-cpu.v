@@ -36,6 +36,10 @@ reg [2:0] S2;
 reg S3;
 reg S4;
 reg S5;
+
+reg [15:0] R1; //stores the data for STA
+reg [15:0] R2;
+reg [15:0] R3;
  
 //define reg end
 //assign here
@@ -70,6 +74,10 @@ always @(negedge reset_n) begin
   S3 <= 1'b0; //default : off
   S4 <= 1'b0; //default : off
   S5 <= 1'b0; //default : off
+
+  R1 <= 0;
+  R2 <= 0;
+  R3 <= 0;
 end
 
 //I will use the sram which gives data whether it is Read mode or not.
@@ -108,7 +116,7 @@ always @(posedge clk)begin //2nd stage (instruction decode)
       default : D0 <= 8'b00000000;
     endcase
     S3 <= 1'b1; //3rd stage enable.
-    #3 AR_1 <= OP0; //put buffer(delay) for indirect addressing in fetch operand (3rd stage)
+    //#3 AR_1 <= OP0; //put buffer(delay) for indirect addressing in fetch operand (3rd stage)
   end else begin
     S2 <= S2 - 1;
     S3 <= 1'b0; //3rd stage disable.
@@ -123,6 +131,8 @@ always @(posedge clk)begin  //3rd stage (fetch operand)
   if(S3 == 1'b1)begin
     D1 <= D0; //D0 must be registerd for not causing structure hazard.
     OP1 <= OP0;
+    #2 AR_1 <= OP0; //async sram will return data. After stage 5 complete.
+    #1 // Is it okay? (if not ok -> #2)
     if(D0[7] == 1'b0)begin //memory reference instructions
       if(I[0] == 1'b0)begin //direct addressing mode
         DR <= data_in;
@@ -148,22 +158,17 @@ always @(posedge clk)begin //4rth stage (execution instruction)
         8'b00000001 : AC <= AC & DR;      //AND
         8'b00000010 : {E, AC} <= AC + DR; //ADD
         8'b00000100 : AC <= DR;           //LDA
-        8'b00001000 :                     //STA
-          r_we_n <= 1'b0;
-          //-------> start here!//r_data_out <= AC; //move to 5th stage. OP1 stores address to store.
+        8'b00001000 : R1 <= AC            //STA -> goes to 5th stage
         8'b00010000 : PC <= OP1;          //BUN
         8'b00100000 :                     //BSA
-          r_we_n <= 1'b0;
-          //r_data_out <= PC; //move to 5th stage. OP1 stores address to store.
-          OP2 <= OP1 +1;
-          #1 PC <= OP2;
+          R2 <= PC; 
+          #1 PC <= OP1 +1;
         8'b01000000 :                     //ISZ -> solve using freeze approach
           DR2 <= DR + 1;
-          //r_we_n <= 1'b0; //move to 5th stage. OP1 stores address to store.
-          #1 r_data_out <= DR2;
           if(DR2 == 0)begin
-            
+            PC <- PC + 1;
           end
+          #1 R3 <= DR2;
       endcase
     end
     else if(D1[7] == 1'b1)begin //register reference instructions
@@ -191,7 +196,15 @@ end
 always @(posedge clk)begin //5th stage (write operand) //can cause structure hazard with 3rd stage.
 //make sure to deal with D2 and I[2] and OP2(register reference)
   if(S5 == 1'b1)begin
-    //write operand -> data hazard.
+    r_we_n <= 1'b0;
+    AR_1 <= OP2;
+    if(D2 == 8'b00001000)begin
+      r_data_out <= R1;
+    end else if(D2 == 8'b00100000)begin
+      r_data_out <= R2;
+    end else if(D2 == 8'b01000000)begin
+      r_data_out <= R3;
+    end
   end
 end
 
