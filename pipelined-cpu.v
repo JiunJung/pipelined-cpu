@@ -40,6 +40,8 @@ reg S5;
 reg [15:0] R1; //stores the data for STA
 reg [15:0] R2;
 reg [15:0] R3;
+
+reg [15:0] B1; //B for Bypassing
  
 //define reg end
 //assign here
@@ -78,6 +80,8 @@ always @(negedge reset_n) begin
   R1 <= 0;
   R2 <= 0;
   R3 <= 0;
+
+  B1 <= 0;
 end
 
 //I will use the sram which gives data whether it is Read mode or not.
@@ -129,26 +133,38 @@ end
 
 always @(posedge clk)begin  //3rd stage (fetch operand)
   if(S3 == 1'b1)begin
-    D1 <= D0; //D0 must be registerd for not causing structure hazard.
-    OP1 <= OP0;
-    #2 AR_1 <= OP0; //async sram will return data. After stage 5 complete.
-    #1 // Is it okay? (if not ok -> #2)
     if(D0[7] == 1'b0)begin //memory reference instructions
-      if(I[0] == 1'b0)begin //direct addressing mode
-        DR <= data_in;
-      end 
-      else if(I[0] == 1'b1)begin //indirect addressing mode
-        AR_1 <= data_in; 
-        #1 DR <= data_in; //put buffer for waiting data fetch.
+      if(OP0 == OP1)begin //Bypassing
+        if(I[0] == 1'b0)begin
+          #3 DR <= B1; OP1 <= OP0;
+        end else if(I[0] == 1'b1)begin
+          #3 AR_1 <= B1;
+          #1 DR <= data_in; OP1 <= B1;
+        end 
+      end else begin 
+        if(I[0] == 1'b0)begin //direct addressing mode
+          #2 AR_1 <= OP0; //async sram will return data. After stage 5 complete.
+          #1 // Is it okay? (if not ok -> #2)
+          DR <= data_in;
+          OP1 <= OP0;
+        end 
+        else if(I[0] == 1'b1)begin //indirect addressing mode
+          #2 AR_1 <= OP0; //async sram will return data. After stage 5 complete.
+          #1 // Is it okay? (if not ok -> #2)
+          AR_1 <= data_in; 
+          OP1 <= data_in;
+          #1 DR <= data_in; //put buffer for waiting data fetch.
+        end
       end
     end
+    D1 <= D0; //D0 must be registerd for not causing structure hazard.
     S4 <= 1'b1;
   end else begin 
     S4 <= 1'b0;
   end
 end
 
-always @(posedge clk)begin //4rth stage (execution instruction) 
+always @(posedge clk)begin //4th stage (execution instruction) 
   if(S4 == 1'b1)begin
     //must move DR data into DR2. NO. It catches before update.
     D2 <= D1;
@@ -158,17 +174,20 @@ always @(posedge clk)begin //4rth stage (execution instruction)
         8'b00000001 : AC <= AC & DR;      //AND
         8'b00000010 : {E, AC} <= AC + DR; //ADD
         8'b00000100 : AC <= DR;           //LDA
-        8'b00001000 : R1 <= AC            //STA -> goes to 5th stage
+        8'b00001000 : 
+          R1 <= AC;                       //STA -> goes to 5th stage
+          B1 <= AC;                       //for bypassing.
         8'b00010000 : PC <= OP1;          //BUN
         8'b00100000 :                     //BSA
-          R2 <= PC; 
+          R2 <= PC;
+          B1 <= PC;
           #1 PC <= OP1 +1;
         8'b01000000 :                     //ISZ -> solve using freeze approach
           DR2 <= DR + 1;
           if(DR2 == 0)begin
             PC <- PC + 1;
           end
-          #1 R3 <= DR2;
+          #1 R3 <= DR2; B1 <= DR2;
       endcase
     end
     else if(D1[7] == 1'b1)begin //register reference instructions
