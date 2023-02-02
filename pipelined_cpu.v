@@ -13,7 +13,7 @@ module pipelined_cpu
   input [DATA_WIDTH-1:0] data_in, //data_in from sram1.
   output [ADDR_WIDTH-1:0] addr_0,
   output [ADDR_WIDTH-1:0] addr_1,
-  output [DATA_WIDTH-1:0] inst_out, //must be connnected to sram0(instruction ram)
+  //output [DATA_WIDTH-1:0] inst_out, //must be connnected to sram0(instruction ram)
   output [DATA_WIDTH-1:0] data_out, //must be connected to sram1(data ram)
   output we_n
 );
@@ -64,9 +64,9 @@ always @(negedge reset_n) begin
   D0 <= 8'd0;
   D1 <= 8'd0;
   D2 <= 8'd0;
-  r_we_n <= 1'b1; //defalt : read
+  r_we_n <= 1'b1; //default : read
 
-  OP0 <= 0; //
+  OP0 <= 0; 
   OP1 <= 0; 
   OP2 <= 0; 
 
@@ -87,7 +87,7 @@ end
 //I will use the sram which gives data whether it is Read mode or not.
 always @(posedge clk)begin //1st stage (fetch instruction)
   if(S1 == 3'b000)begin
-    AR_0 <= PC; //error
+    AR_0 <= PC; //error?
     #2 //put buffer for waiting instruction fetch.
     IR <= inst_in;
     PC <= PC + 1;
