@@ -52,7 +52,7 @@ assign data_out = r_data_out;
 //assign end
 always @(negedge reset_n) begin
   //register initialize
-  AR_0 <= 16'd0;
+  AR_0 <= 16'b1111111111111111;
   AR_1 <= 16'd0;
   DR <= 16'd0;
   DR2 <= 16'd0;
@@ -71,7 +71,7 @@ always @(negedge reset_n) begin
   OP2 <= 0; 
 
   //stage on/off control register.
-  S1 <= 3'b000; //default : on
+  S1 <= 3'b000; //default : off
   S2 <= 3'b001; //default : off
   S3 <= 1'b0; //default : off
   S4 <= 1'b0; //default : off
@@ -88,7 +88,7 @@ end
 always @(posedge clk)begin //1st stage (fetch instruction)
   if(S1 == 3'b000)begin
     AR_0 <= PC; //error?
-    #2 //put buffer for waiting instruction fetch.
+    #5 //put buffer for waiting instruction fetch.
     IR <= inst_in;
     PC <= PC + 1;
   end
@@ -102,10 +102,11 @@ end
 
 always @(posedge clk)begin //2nd stage (instruction decode)
   if(S2 == 3'b000)begin
-    if(IR[14:12] == 3'b100 or IR[14:12] == 3'b101 or IR[14:12] == 3'b110)begin
+    if((IR[14:12] == 3'b100) || (IR[14:12] == 3'b101) || (IR[14:12] == 3'b110))begin
       S1 <= 3'b010;
       S2 <= 1'b0;
     end
+    #4
     I <= {I[1:0],IR[15]};
     OP0 <= IR[11:0];
     case(IR[14:12]) //decoder
@@ -160,6 +161,8 @@ always @(posedge clk)begin  //3rd stage (fetch operand)
           end
         end
       end
+    end else begin 
+      #3 OP1 <= OP0;
     end
     D1 <= D0; //D0 must be registerd for not causing structure hazard.
     S4 <= 1'b1;
@@ -174,25 +177,28 @@ always @(posedge clk)begin //4th stage (execution instruction)
     D2 <= D1;
     OP2 <= OP1; //Is it really neccessary? Yes. 5th stage needs address to store the data.
     if(D1[7] == 1'b0)begin //memory reference instructions //must solve branch hazard.
-      case(D1)
-        8'b00000001 : AC <= AC & DR;      //AND
-        8'b00000010 : {E, AC} <= AC + DR; //ADD
-        8'b00000100 : AC <= DR;           //LDA
-        8'b00001000 : 
-          R1 <= AC;                       //STA -> goes to 5th stage
-          B1 <= AC;                       //for bypassing.
-        8'b00010000 : PC <= OP1;          //BUN
-        8'b00100000 :                     //BSA
-          R2 <= PC;
-          B1 <= PC;
-          #1 PC <= OP1 +1;
-        8'b01000000 :                     //ISZ -> solve using freeze approach
-          DR2 <= DR + 1;
-          if(DR2 == 0)begin
-            PC <- PC + 1;
-          end
-          #1 R3 <= DR2; B1 <= DR2;
-      endcase
+      if(D1 == 8'b00000001)begin          //AND
+        AC <= AC & DR;
+      end else if(D1 == 8'b00000010)begin //ADD
+        {E, AC} <= AC + DR;
+      end else if(D1 == 8'b00000100)begin //LDA
+        AC <= DR;
+      end else if(D1 == 8'b00001000)begin //STA -> goes to 5th stage
+        R1 <= AC;                         
+        B1 <= AC;                         //for bypassing.
+      end else if(D1 == 8'b00010000)begin //BUN
+        PC <= OP1; 
+      end else if(D1 == 8'b00100000)begin //BSA
+        R2 <= PC;
+        B1 <= PC;
+        #1 PC <= OP1 +1;
+      end else if(D1 == 8'b01000000)begin //ISZ -> solve using freeze approach
+        DR2 <= DR + 1;
+        if(DR2 == 0)begin
+          PC <= PC + 1;
+        end
+        #1 R3 <= DR2; B1 <= DR2;
+      end
     end
     else if(D1[7] == 1'b1)begin //register reference instructions
       if(I[1] == 1'b0)begin
@@ -219,14 +225,21 @@ end
 always @(posedge clk)begin //5th stage (write operand) //can cause structure hazard with 3rd stage.
 //make sure to deal with D2 and I[2] and OP2(register reference)
   if(S5 == 1'b1)begin
-    r_we_n <= 1'b0;
-    AR_1 <= OP2;
     if(D2 == 8'b00001000)begin
+      r_we_n <= 1'b0;
+      AR_1 <= OP2;
       r_data_out <= R1;
+      #1 r_we_n <= 1'b1; AR_1 <= 0;
     end else if(D2 == 8'b00100000)begin
+      r_we_n <= 1'b0;
+      AR_1 <= OP2;
       r_data_out <= R2;
+      #1 r_we_n <= 1'b1; AR_1 <= 0;
     end else if(D2 == 8'b01000000)begin
+      r_we_n <= 1'b0;
+      AR_1 <= OP2;
       r_data_out <= R3;
+      #1 r_we_n <= 1'b1; AR_1 <= 0;
     end
   end
 end
