@@ -84,19 +84,20 @@ always @(negedge reset_n) begin
   B1 <= 0;
 end
 
-//I will use the sram which gives data whether it is Read mode or not.
+//I will use the sram which gives data whether it is read mode or not.
 always @(posedge clk)begin //1st stage (fetch instruction)
   if(S1 == 3'b000)begin
     AR_0 <= PC; //error?
     #5 //put buffer for waiting instruction fetch.
-    IR <= inst_in;
-    PC <= PC + 1;
+    if(S1 == 3'b010)begin
+      PC <= PC;
+    end else begin
+      IR <= inst_in;
+      PC <= PC + 1;
+    end
   end
-  else if(S1 == 3'b010)begin
-    PC <= PC - 1; // No data coherene with 4th stage.
-    S1 <= S1 - 1;
-  end else begin
-    S1 <= S1 - 1;
+  else begin
+    #3 S1 <= S1 - 1;
   end
 end
 
@@ -104,7 +105,7 @@ always @(posedge clk)begin //2nd stage (instruction decode)
   if(S2 == 3'b000)begin
     if((IR[14:12] == 3'b100) || (IR[14:12] == 3'b101) || (IR[14:12] == 3'b110))begin
       S1 <= 3'b010;
-      S2 <= 1'b0;
+      S2 <= 3'b011;
     end
     #4
     I <= {I[1:0],IR[15]};
@@ -123,7 +124,7 @@ always @(posedge clk)begin //2nd stage (instruction decode)
     S3 <= 1'b1; //3rd stage enable.
     //#3 AR_1 <= OP0; //put buffer(delay) for indirect addressing in fetch operand (3rd stage)
   end else begin
-    S2 <= S2 - 1;
+    #3 S2 <= S2 - 1;
     S3 <= 1'b0; //3rd stage disable.
   end
 
@@ -194,6 +195,7 @@ always @(posedge clk)begin //4th stage (execution instruction)
         #1 PC <= OP1 +1;
       end else if(D1 == 8'b01000000)begin //ISZ -> solve using freeze approach
         DR2 <= DR + 1;
+        #1
         if(DR2 == 0)begin
           PC <= PC + 1;
         end
