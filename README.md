@@ -10,3 +10,6 @@ application of pipeline to mano-machine cpu.
 - Data Hazard
 
 - Branch Hazard
+
+---------------------------
+This pipelined mano-machine has been improved it's processing speed 51.67% faster than single cycle mano-machine 
