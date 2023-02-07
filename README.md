@@ -1,6 +1,7 @@
-# pipelined-cpu
+# pipelined mano machine
 
-- application of pipeline to mano-machine cpu.
+- application of 5 stage pipeline to mano-machine cpu.
+  
 
 - This pipelined mano-machine has been improved it's processing speed 51.67% faster than single cycle mano-machine 
 
@@ -13,6 +14,11 @@
 [Pipelined mano-machine : Ends at 137.5ns]
 
 -----
+## Secret of pipelined mano machine.
+
+5 stage pipelined cpu is supposed to be approximately 5 times faster. But there's a few problems called "hazrard" when you make pipeline. Sometimes, we need to stall some stages to solve the hazards. That's why this pipelined mano machine is not 5 times faster than single cycle mano machine. But, the point is, It is really improved!
+
+-----------------
 
 ## Pipeline Hazards
 
