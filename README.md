@@ -35,12 +35,27 @@ What kind of hazards did I faced, and how did I solve the hazards?
 
     However, stalling the pipeline causes througput decrease. So I used Havard Architecture. I used two kinds of memory. Sram0 for store instructions, and Sram1 for store data. <br/>
 
-    It was good decision because I had to use stalling method later(to solve branch hazard). If I chose to stall pipeline, this CPU might be slower than now. 
+    It was good decision because I had to use stalling method later(to solve branch hazard). If I chose to stall pipeline, this CPU might be slower than now. <br/>
+
+    But, there's one problem still remaining which is conflict of 3rd stage and 5th stage. Both stage use data memory. In this case, I put delay to 3rd stage. So, when both of them work, 5th stage starts to work a little bit faster than 3rd stage. And It prevents structure hazard. Furthermore, It can prevent data hazard when the instruction 2 times before is going to update the data which should change now. <br/>
 
 - Data Hazard
 
-    
+    Data hazard occurs when an instruction depends on the result of a previous instruction. For example, at 3rd stage, cpu fetches the data. But, the data could not be completely updated because, at 5th stage, the data could be still in progress. <br/>
+
+    To prevent this, we can use two methods. First one is stallind and second one is "bypassig". I have mentioned that stalling can decrease throughput. So, if other method exists, that way might be better. <br/>
+
+    So, what is bypassig? Is it really better than stalling? The answer is yes. Bypassing doens't need to stall pipeline. Bypassing means when the instruction needs same address with an instruction right before, it gets the data directly from previous instruction, right before when the calculation is finished. <br/>
+
+    So, at 4th stage, it stores data at an register for a while in advance. <br/>
+
+    Data hazard can occurs even when an instruction 2 times before conflicts with current instruction. But, we already solved this problem when we solve structure hazard. <br/>
 
 - Branch Hazard
+
+    Some instructions need to change the data in PC. And it can cause problem with 1st stage (instruction fetch). there are several ways to prevent our CPU from branch hazard. Freeze scheme, predict-untaken scheme, predict-taken scheme, delayed branch is that. Freeze scheme is simply just stop the progress until the branch is chosen. predict-untaken is that while freeze scheme is in progress, CPU just predict the branch mighy untaken. And, if the predict was wrong, delete all the process which is wrong, and redo the process. Predict-taken scheme is just opposite to it. Delayed branch is doing other instructions which is not assosiated with the branch instruction. It is done in compiler time. <br/>
+
+    I just simply used freeze approach. I used if-els and on/off token in verilog. You can check through pipelined-cpu.v in this repo.
+
 
 ---------------------------
