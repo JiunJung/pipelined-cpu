@@ -43,7 +43,7 @@ What kind of hazards did I faced, and how did I solve the hazards?
 
     Data hazard occurs when an instruction depends on the result of a previous instruction. For example, at 3rd stage, cpu fetches the data. But, the data could not be completely updated because, at 5th stage, the data could be still in progress. <br/>
 
-    To prevent this, we can use two methods. First one is stallind and second one is "bypassig". I have mentioned that stalling can decrease throughput. So, if other method exists, that way might be better. <br/>
+    To prevent this, we can use two methods. First one is stalling and second one is "bypassig". I have mentioned that stalling can decrease throughput. So, if other method exists, that way might be better. <br/>
 
     So, what is bypassig? Is it really better than stalling? The answer is yes. Bypassing doens't need to stall pipeline. Bypassing means when the instruction needs same address with an instruction right before, it gets the data directly from previous instruction, right after when the calculation is finished. <br/>
 
